@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>泡泡游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .title-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+            transition: opacity 0.8s ease;
+        }
+
+        .title {
+            font-family: 'Courier New', monospace;
+            font-size: 64px;
+            font-weight: 900;
+            color: transparent;
+            -webkit-text-stroke: 2px #333;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+            display: flex;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .title span {
+            display: inline-block;
+            transition: transform 0.15s ease;
+        }
+
+        .subtitle {
+            font-family: 'Courier New', monospace;
+            font-size: 32px;
+            font-weight: 900;
+            color: transparent;
+            -webkit-text-stroke: 1.5px #333;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="title-container" id="titleContainer">
+        <div class="title" id="titleText"></div>
+        <div class="subtitle">tap to play</div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 设置画布大小
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // 泡泡数组
+        const bubbles = [];
+
+        // 背景点点数组
+        const particles = [];
+
+        // UI状态
+        const titleContainer = document.getElementById('titleContainer');
+        const titleText = document.getElementById('titleText');
+        let titleVisible = true;
+        let hasInteracted = false;
+
+        // 初始化标题字母
+        const titleString = 'meaningless bubble';
+        titleText.innerHTML = titleString.split('').map(char =>
+            char === ' ' ? ' ' : `<span>${char}</span>`
+        ).join('');
+
+        // 字母跳动动画
+        const titleSpans = titleText.querySelectorAll('span');
+        function animateTitleLetters() {
+            if (!titleVisible) return;
+
+            // 随机选择一个字母跳动
+            const randomIndex = Math.floor(Math.random() * titleSpans.length);
+            const span = titleSpans[randomIndex];
+            if (span) {
+                // 多次跳动
+                let bounceCount = 0;
+                const maxBounces = 2 + Math.floor(Math.random() * 2); // 2-3次跳动
+
+                function bounce() {
+                    if (bounceCount >= maxBounces) {
+                        span.style.transform = 'translateY(0) rotate(0deg)';
+                        return;
+                    }
+
+                    const randomY = (Math.random() - 0.5) * 16; // -8px 到 8px
+                    const randomRotate = (Math.random() - 0.5) * 20; // -10度 到 10度
+                    span.style.transform = `translateY(${randomY}px) rotate(${randomRotate}deg)`;
+
+                    bounceCount++;
+                    setTimeout(bounce, 120);
+                }
+
+                bounce();
+            }
+
+            // 随机间隔后再次跳动
+            setTimeout(animateTitleLetters, 300 + Math.random() * 400);
+        }
+        animateTitleLetters();
+
+        // 音频上下文
+        let audioContext = null;
+
+        // 创建背景点点
+        function createParticle() {
+            return {
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: 2 + Math.random() * 4,
+                velocityX: (Math.random() - 0.5) * 0.3,
+                velocityY: (Math.random() - 0.5) * 0.3,
+                targetAlpha: 0.5 + Math.random() * 0.5,
+                alpha: 0,
+                life: 0,
+                maxLife: 3000 + Math.random() * 4000, // 3-7秒
+                state: 'growing'
+            };
+        }
+
+        // 初始化背景点点
+        function initParticles() {
+            for (let i = 0; i < 50; i++) {
+                const particle = createParticle();
+                particle.life = Math.random() * particle.maxLife; // 错开生命周期
+                particles.push(particle);
+            }
+        }
+        initParticles();
+
+        // 播放泡泡破裂音效
+        function playPopSound() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.15);
+
+            gainNode.gain.setValueAtTime(0.6, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.15);
+        }
+
+        // 泡泡类
+        class Bubble {
+            constructor(x, y, isSmallBubble = false) {
+                this.x = x;
+                this.y = y;
+                this.isSmallBubble = isSmallBubble;
+
+                if (isSmallBubble) {
+                    // 小泡泡：5-25（更小的范围）
+                    this.radius = 5 + Math.random() * 20;
+                    this.life = 0;
+                    this.maxLife = 1500 + Math.random() * 1000; // 1.5-2.5秒
+                    // 初始上升速度
+                    this.velocityY = -(0.05 + Math.random() * 0.1); // 向上移动
+                } else {
+                    // 大泡泡：50-100
+                    this.radius = 50 + Math.random() * 50;
+                    this.life = 0;
+                    this.maxLife = 600 + Math.random() * 400; // 0.6-1秒（更短）
+                    this.velocityY = 0;
+                    // 高光大小随机
+                    this.highlightRadius = this.radius * (0.1 + Math.random() * 0.15); // 10%-25%
+                }
+
+                this.alpha = 1;
+                this.state = 'growing';
+                this.targetRadius = this.radius;
+                this.radius = 0;
+            }
+
+            update(deltaTime) {
+                this.life += deltaTime;
+
+                // 生长阶段
+                if (this.state === 'growing') {
+                    this.radius += (this.targetRadius - this.radius) * 0.1;
+                    if (Math.abs(this.targetRadius - this.radius) < 1) {
+                        this.state = 'stable';
+                        // 大泡泡长完后立即消失
+                        if (!this.isSmallBubble) {
+                            return true;
+                        }
+                    }
+                }
+
+                // 小泡泡一直上浮（包括生长阶段）
+                if (this.isSmallBubble) {
+                    this.y += this.velocityY * deltaTime;
+                    if (this.life > this.maxLife) {
+                        this.alpha -= deltaTime / 300; // 慢慢消失
+                    }
+                }
+
+                return false;
+            }
+
+            draw(ctx) {
+                if (this.alpha <= 0) return;
+
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+
+                // 手绘线条风格
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+
+                // 绘制圆形
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 大泡泡添加高光
+                if (!this.isSmallBubble) {
+                    ctx.beginPath();
+                    ctx.arc(
+                        this.x - this.radius * 0.3,
+                        this.y - this.radius * 0.3,
+                        this.highlightRadius,
+                        0,
+                        Math.PI * 2
+                    );
+                    ctx.strokeStyle = 'rgba(51, 51, 51, 0.5)';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.alpha <= 0;
+            }
+        }
+
+        // 点击生成泡泡
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            bubbles.push(new Bubble(x, y, false));
+
+            // 隐藏标题
+            if (titleVisible) {
+                titleVisible = false;
+                hasInteracted = true;
+                titleContainer.style.opacity = '0';
+
+                // 在标题位置生成小泡泡（标题长度范围）
+                const titleRect = titleContainer.getBoundingClientRect();
+                const titleCenterX = titleRect.left + titleRect.width / 2;
+                const titleCenterY = titleRect.top + titleRect.height / 2;
+                for (let i = 0; i < 8; i++) {
+                    const offsetX = (Math.random() - 0.5) * titleRect.width;
+                    const offsetY = (Math.random() - 0.5) * 50;
+                    const smallBubble = new Bubble(titleCenterX + offsetX, titleCenterY + offsetY, true);
+                    // 更小的泡泡
+                    smallBubble.radius = 2 + Math.random() * 6;
+                    smallBubble.targetRadius = smallBubble.radius;
+                    bubbles.push(smallBubble);
+                }
+            }
+        });
+
+        // 游戏循环
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 更新和绘制背景点点（线描风格）
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                particle.life += deltaTime;
+                particle.x += particle.velocityX;
+                particle.y += particle.velocityY;
+
+                // 边界循环
+                if (particle.x < 0) particle.x = canvas.width;
+                if (particle.x > canvas.width) particle.x = 0;
+                if (particle.y < 0) particle.y = canvas.height;
+                if (particle.y > canvas.height) particle.y = 0;
+
+                // 生长和消失逻辑
+                const lifeRatio = particle.life / particle.maxLife;
+                if (lifeRatio < 0.2) {
+                    // 生长阶段（前20%时间）
+                    particle.alpha = (lifeRatio / 0.2) * particle.targetAlpha;
+                } else if (lifeRatio > 0.8) {
+                    // 消失阶段（后20%时间）
+                    particle.alpha = ((1 - lifeRatio) / 0.2) * particle.targetAlpha;
+                } else {
+                    particle.alpha = particle.targetAlpha;
+                }
+
+                // 移除死亡的点点并创建新的
+                if (particle.life > particle.maxLife) {
+                    particles.splice(i, 1);
+                    particles.push(createParticle());
+                    continue;
+                }
+
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(150, 150, 150, ${particle.alpha})`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            // 更新和绘制泡泡
+            for (let i = bubbles.length - 1; i >= 0; i--) {
+                const shouldSpawnSmallBubbles = bubbles[i].update(deltaTime);
+
+                // 大泡泡突然消失时生成小泡泡
+                if (shouldSpawnSmallBubbles && !bubbles[i].isSmallBubble) {
+                    playPopSound(); // 播放音效
+                    const numSmallBubbles = 3 + Math.floor(Math.random() * 4); // 3-6个小泡泡
+                    for (let j = 0; j < numSmallBubbles; j++) {
+                        const offsetX = (Math.random() - 0.5) * bubbles[i].radius * 1.5;
+                        const offsetY = (Math.random() - 0.5) * bubbles[i].radius * 1.5;
+                        bubbles.push(new Bubble(bubbles[i].x + offsetX, bubbles[i].y + offsetY, true));
+                    }
+                    // 立即移除大泡泡
+                    bubbles.splice(i, 1);
+                    continue;
+                }
+
+                bubbles[i].draw(ctx);
+
+                // 移除死亡的泡泡
+                if (bubbles[i].isDead()) {
+                    bubbles.splice(i, 1);
+                }
+            }
+
+            // 泡泡清空后显示标题
+            if (hasInteracted && bubbles.length === 0 && !titleVisible) {
+                titleVisible = true;
+                titleContainer.style.opacity = '1';
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 启动游戏
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

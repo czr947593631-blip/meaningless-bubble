@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- 白色背景 -->
+  <rect width="512" height="512" fill="white"/>
+  
+  <!-- 主泡泡 -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#333333" stroke-width="8"/>
+  
+  <!-- 高光小泡泡 -->
+  <circle cx="180" cy="180" r="40" fill="none" stroke="#333333" stroke-width="6"/>
+  
+  <!-- 更小的装饰泡泡 -->
+  <circle cx="350" cy="350" r="25" fill="none" stroke="#333333" stroke-width="5"/>
+</svg>
