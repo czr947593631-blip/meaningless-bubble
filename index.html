@@ -68,26 +68,6 @@
     </div>
     <canvas id="gameCanvas"></canvas>
 
-    <!-- 声音上传按钮 -->
-    <div id="soundUploadContainer" style="position: fixed; bottom: 30px; right: 30px; z-index: 1000;">
-        <label for="soundUpload" style="display: inline-block; padding: 14px 24px; background: #333; color: white; border-radius: 10px; cursor: pointer; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: transform 0.2s, box-shadow 0.2s;">
-            🎵 上传破裂音效
-        </label>
-        <input type="file" id="soundUpload" accept="audio/*" style="display: none;">
-    </div>
-    <script>
-        // 按钮悬停效果
-        const uploadLabel = document.querySelector('label[for="soundUpload"]');
-        uploadLabel.addEventListener('mouseenter', () => {
-            uploadLabel.style.transform = 'scale(1.05)';
-            uploadLabel.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)';
-        });
-        uploadLabel.addEventListener('mouseleave', () => {
-            uploadLabel.style.transform = 'scale(1)';
-            uploadLabel.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-        });
-    </script>
-
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -155,40 +135,9 @@
 
         // 音频上下文
         let audioContext = null;
-        let customPopSound = null;
-
-        // 从本地存储加载已保存的声音
-        const savedSound = localStorage.getItem('customPopSound');
-        if (savedSound) {
-            customPopSound = new Audio(savedSound);
-            customPopSound.volume = 0.7;
-            // 隐藏上传按钮
-            const soundUploadContainer = document.getElementById('soundUploadContainer');
-            if (soundUploadContainer) {
-                soundUploadContainer.style.display = 'none';
-            }
-        }
-
-        // 声音上传处理
-        const soundUpload = document.getElementById('soundUpload');
-        const soundUploadContainer = document.getElementById('soundUploadContainer');
-
-        soundUpload.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const soundData = event.target.result;
-                    // 保存到本地存储
-                    localStorage.setItem('customPopSound', soundData);
-                    customPopSound = new Audio(soundData);
-                    customPopSound.volume = 0.7;
-                    // 上传成功后隐藏按钮
-                    soundUploadContainer.style.display = 'none';
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+        // 加载项目目录中的声音文件
+        const customPopSound = new Audio('bubble-pops.wav');
+        customPopSound.volume = 0.7;
 
         // 创建背景点点
         function createParticle() {
